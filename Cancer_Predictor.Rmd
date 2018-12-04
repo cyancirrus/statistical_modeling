@@ -1,0 +1,85 @@
+---
+title: "ridge"
+author: "cyan"
+date: "11/21/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r data}
+library( caret )
+library( ggplot2 )
+
+# data manipulation
+
+df_cancer = data.frame( biopsy )
+head( df_cancer )
+df_cancer$ID = NULL
+
+head( df_cancer[ !( is.na( df_cancer$V6 ) ), ])
+
+df_cancer = df_cancer[ ! is.na( df_cancer$V6 ), ]
+
+
+i_cancer = 1:nrow( df_cancer )
+
+sample = sample(
+  x = i_cancer,
+  size = .75 * nrow( df_cancer )
+)
+
+head( df_cancer )
+
+
+# set up model parameters
+
+head( df_cancer )
+
+
+
+method_validation = trainControl( method = 'cv', number = 10)
+
+hyper_param_cancer = expand.grid( mtry = c(1,2,3,4,5) )
+
+hyper_param_cancer
+
+sample_index_cancer = sample( 1: nrow( df_cancer ), size = .8* nrow( df_cancer ) )
+
+df_cancer_train = df_cancer[ sample_index_cancer, ]
+
+df_cancer_test = df_cancer[ -sample_index_cancer, ]
+
+m_rf_cancer = 
+  train( x = df_cancer_train[, 1 : ( ncol( df_cancer_train ) ) - 1 ],
+         y = df_cancer_train$class,
+         method = "rf",
+         trControl = method_validation,
+         tuneGrid = hyper_param_cancer
+  )
+
+
+test_cancer = predict( m_rf_cancer, newdata = df_cancer_test )
+
+
+head( test_cancer )
+
+results = data.frame( predicted = test_cancer, actual = df_cancer_test$class )
+
+head( results )
+
+results$loss = 1 -as.integer(results$predicted == results$actual )
+
+head( results)
+
+sum( results$loss )
+
+nrow (df_cancer_test )
+
+confusionMatrix( data = results$predicted, reference = results$actual)
+
+
+```

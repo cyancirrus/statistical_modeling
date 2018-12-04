@@ -1,0 +1,110 @@
+---
+title: "Gbm"
+author: "cyan"
+date: "11/17/2018"
+output: html_document
+---
+
+```{r get_iris_dataframe }
+rm( list = ls () )
+
+data( iris )
+
+df_iris = data.frame( iris )
+
+summary( df_iris )
+
+set.seed(1779)
+
+nrow( df_iris )
+
+index_train_iris = sample( 1:nrow(df_iris), size = .75 * nrow( df_iris ) )
+
+df_iris_train = df_iris[ index_train_iris, ]
+
+df_iris_test = df_iris[ -index_train_iris, ]
+
+m_gbm_iris = 
+  gbm(
+    data = df_iris_train,
+    formula = df_iris_train$Species ~ .,
+    distribution = "multinomial",
+    n.trees = 500,
+    shrinkage = .1,
+    train.fraction = .5,
+    bag.fraction = .5
+  )
+  
+
+
+
+summary( m_gbm_iris )
+
+
+gbm.perf( m_gbm_iris , method = "OOB")
+best.iter = gbm.perf( m_gbm_iris, method = "OOB")
+
+best.iter[1]
+
+p_m_gbm_iris =
+  data.frame(
+    predict(
+      m_gbm_iris,
+      newdata = df_iris_test,
+      i.var = df_iris_test$Species, 
+      n.trees = 16,
+      type = "response"
+      )
+  )
+
+
+p_m_gbm_iris
+
+df_iris[1,]
+
+max( p_m_gbm_iris[1,] )
+
+which.max( p_m_gbm_iris[32,])
+
+predicted_iris = c()
+index = 1
+while (index < nrow( p_m_gbm_iris ) ){
+  predicted_iris = c( predicted_iris, which.max( p_m_gbm_iris[ index, ] ) )
+  index = index +1
+}
+
+df_iris_test$Species
+
+
+predicted_iris
+
+which.max( p_m_gbm_iris)
+
+df_iris_test$Species
+
+levels( df_iris_test$Species )
+
+df_iris_test$Class = df_iris_test$Species
+
+levels( df_iris_test$Class ) = list( 
+  '1' = c( "setosa" ),
+  '2' = c( "versicolor" ),
+  '3' = c( "virginica" )
+  )
+
+df_iris_test$Class
+df_iris_test$Species
+
+df_iris_test$Class
+
+df_predicted_iris = data.frame( predicted_iris )
+
+df_predicted_iris
+
+
+error = (df_predicted_iris - as.numeric(df_iris_test$Class) )
+
+sum( error * error )/ nrow( error )
+
+
+```

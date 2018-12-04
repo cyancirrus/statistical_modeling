@@ -1,0 +1,269 @@
+---
+title: "subset_clustering"
+author: "cyan"
+date: "12/3/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r get_data}
+library( ggplot2 )
+
+
+data( "USArrests" )
+df_crime = data.frame( USArrests )
+
+summary( df_crime )
+nrow( df_crime )
+
+m_pca_crime = 
+  prcomp( 
+    x = df_crime,
+    center = TRUE,
+    scale = TRUE
+  )
+
+summary( m_pca_crime )
+
+head( m_pca_crime$x)
+
+df_pca_crime = data.frame( m_pca_crime$x )
+
+g_pca_crime = ggplot(
+  data = df_pca_crime,
+  mapping = aes(
+    x = df_pca_crime$PC1,
+    y = df_pca_crime$PC2,
+    colour = row.names( df_pca_crime )
+  )
+)
+
+g_pca_crime + geom_point()
+
+summary( df_crime )
+
+#nothing obvious on cluster centers try k-means with k =2, as there might be a verticle divide
+
+```
+```{r kmeans}
+#working dataset
+head( df_crime )
+
+index_train_crime =
+  sample( 
+    1: nrow( df_crime ),
+    size = .8*nrow(df_crime)
+    )
+
+df_train_crime = df_crime[ index_train_crime, ]
+
+df_test_crime = df_crime[ -index_train_crime, ]
+
+nrow( df_train_crime )
+nrow( df_test_crime )
+
+#there's no real test as this is clustering not classification, but i want to see how sensitive the clusters are to small perturbations in the data. i also want to see how the ratio of between cluster variance over total variance changes with the addition of data
+
+set.seed( 100 )
+
+m_kmeans_crime =
+  kmeans( x = df_train_crime,
+          centers = 2,
+          iter.max = 20,
+          nstart = 4
+          )
+
+m_kmeans_crime$betweenss/m_kmeans_crime$totss
+
+# this is a quassi R squared like statistic, as R squared 
+# as SS Total = SS residual + SS regression, where you want SS residual to be as low as Possible,
+# here SS Total = SS between + SS within
+
+#pca had 99% of variance at two dimensions, interested to see what kmeans at center = 3 looks like
+
+m_3means_crime =
+  kmeans( x = df_train_crime,
+          centers = 3,
+          iter.max = 20,
+          nstart = 4
+          )
+
+clusteRsquared = function( cluster_model ){
+  cluster_model$betweenss/cluster_model$totss
+}
+
+clusteRsquared( m_3means_crime )
+
+clusteRsquared( m_kmeans_crime )
+
+
+summary( m_kmeans_crime )
+
+m_kmeans_crime$totss
+m_3means_crime$totss
+
+#use graphical output to see if the 2 or 3 clusters seem to fit the data better
+
+df_pca_crime = data.frame( prcomp( df_train_crime, center = TRUE, scale = TRUE )$x )
+
+g_cluster_crime =
+  ggplot(
+    x = df_pca_crime,
+    mapping = aes(
+      x = df_pca_crime$PC1,
+      y = df_pca_crime$PC2,
+      colour = as.factor( m_kmeans_crime$cluster )
+    )
+  )
+
+
+
+g_cluster_crime + geom_point()
+
+
+```
+
+3 means looks really arbitrary in the main two directions of the data. as the main two directions accounts for 99% of variance i'm going to go with 2 splits.
+
+```{r test_analysis}
+
+library( cluster )
+
+# before i do test cases i want to check if bottom up clustering
+# aglomerative nesting produces similar or divergent results
+
+m_agnes_crime = agnes( df_train_crime )
+
+plot( df_train_crime )
+
+```
+
+you can see that many of the variables vary along one dominant direction
+
+```{r dendrogram }
+
+pltree( m_agnes_crime )
+```
+you can see here that either 2 or 3 clusters would be valid. as the first pca was so dominant i'm going to go with 2 clusters as my final model, but will show how the propotion changes with the holdout data for the 3means model.
+
+```{r validaiton}
+
+m_2means_total_crime =
+  kmeans(
+    x = df_crime,
+    centers = 2,
+    iter.max = 20
+  )
+
+m_2means_total_crime$centers
+m_kmeans_crime$centers
+
+
+
+
+```
+
+these centers are nearly completely stable
+
+```{r validation}
+
+m_3means_total_crime =
+  kmeans(
+    x = df_crime,
+    centers = 3,
+    iter.max = 20
+  )
+
+m_3means_total_crime$centers
+m_3means_crime$centers
+
+
+```
+
+  you can see that the 2 cluster model was significantly more robust.
+  
+```{r validation}
+
+df_train_crime$predict_train = m_kmeans_crime$cluster
+
+
+df_partial_crime = data.frame( m_kmeans_crime$cluster )
+df_total_crime = data.frame( m_2means_total_crime$cluster )
+
+row.names( df_partial_crime )
+
+df_partial_crime$state = row.names( df_partial_crime )
+df_total_crime$state = row.names( df_total_crime )
+
+names( df_partial_crime ) = c( "cluster", "state" )
+names( df_total_crime ) = c( "cluster", "state" )
+
+df_stability_crime =
+  merge(
+    x = df_partial_crime,
+    y = df_total_crime,
+    by = intersect( "state", "state"),
+    all.x = FALSE,
+    all.y = FALSE
+    )
+
+df_stability_crime$stability = 
+  as.integer( 
+    df_stability_crime$cluster.x == 
+    df_stability_crime$cluster.y
+    )
+
+
+mean( df_stability_crime$stability )
+
+#95 % of the cluster specifications stayed the same, agrees with aglomerative nesting, and PCA
+
+
+df_pca_crime$state = row.names( df_pca_crime )
+
+df_g_stability_crime =
+  merge(
+    x = df_stability_crime,
+    y = df_pca_crime,
+    by = intersect( "state", "state" ),
+    all.x = FALSE,
+    all.y = FALSE
+  )
+
+head( df_g_stability_crime )
+
+
+g_results_crime =
+  ggplot(
+    data = df_g_stability_crime,
+    mapping = aes(
+      x = df_g_stability_crime$PC1,
+      y = df_g_stability_crime$PC2,
+      colour = as.factor( df_g_stability_crime$cluster.y )
+    )
+  )
+
+g_results_crime$labels$colour = "assigned_cluster"
+
+g_results_crime +
+  geom_point( shape = as.factor( df_g_stability_crime$stability ) ) +
+  xlab( "principle component1") +
+  ylab( "principle component2" ) +
+  labs( title = "Crime Analysis of the United States of America")
+  
+
+
+
+
+
+```
+
